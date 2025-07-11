@@ -40,6 +40,8 @@ contract BriVault is ERC4626, Ownable {
 
     mapping (address => uint256) public depositAsset;
     mapping(uint256 => uint256) public countryToTeamIndex;
+    mapping (address => uint256) public userToCountry;
+    
 
     constructor (IERC20 _asset, uint256 _participationFeeBsp, uint256 _eventStartDate, address _participationAddress, uint256 _minimumAmount) ERC4626 (_asset) ERC20("BriTechLabs", "BTT") Ownable(msg.sender) {
          participationFeeBsp = _participationFeeBsp;
@@ -106,13 +108,16 @@ contract BriVault is ERC4626, Ownable {
 
         stakedAmount += depositAsset[msg.sender];
 
+        userToCountry[msg.sender] = [countryId];
+
         depositAsset[msg.sender] = 0;
+
         numberOfParticipants++;
 
         _mintShares (msg.sender, particioantShares);
 
         emit joinedEvent (msg.sender, participantShares, countryId);
-        
+
         return (uint256 participantShares);
     }
 

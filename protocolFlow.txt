@@ -29,5 +29,5 @@ we need to know the number of participants and total value
         * user is to pick a valid team.
         * get shears for the asset deposited 
         * users should only join once.
-        * 
+        * map the user to the country they picked 
 
