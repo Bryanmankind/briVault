@@ -13,9 +13,11 @@ contract BriVault is ERC4626, Ownable {
     /**
     @dev participationFee address
      */
-    address private participationAddress;
+    address private participationFeeAddress;
     uint256 public eventStartDate;
     uint256 public eventEndDate;
+    uint256 public  stakedAmount;
+    uint256 public totalAssets;
 
     // minimum amount to join in.
     uint256 public  minimumAmount; 
@@ -34,6 +36,7 @@ contract BriVault is ERC4626, Ownable {
 
     event deposited (address indexed _depositor, uint256 _value);
     event CountriesSet(uint256[48] country);
+    event joinedEvent(address user, uint256 _countryId);
 
     mapping (address => uint256) public depositAsset;
     mapping(uint256 => uint256) public countryToTeamIndex;
@@ -41,9 +44,9 @@ contract BriVault is ERC4626, Ownable {
     constructor (IERC20 _asset, uint256 _participationFeeBsp, uint256 _eventStartDate, address _participationAddress, uint256 _minimumAmount) ERC4626 (_asset) ERC20("BriTechLabs", "BTT") Ownable(msg.sender) {
          participationFeeBsp = _participationFeeBsp;
          eventStartDate = _eventStartDate;
-         participationAddress = _participationAddress;
+         participationFeeAddress = _participationFeeAddress;
          minimumAmount= _minimumAmount;
-
+         totalAssets = 1000000;                     // total asset manage by the vault
     }
 
     /**
@@ -55,9 +58,8 @@ contract BriVault is ERC4626, Ownable {
     function setCountry(uint256[48] memory countries) public onlyOwner {
         for (uint256 i = 0; i < countries.length; ++i) {
             countryToTeamIndex[i + 1] = countries[i];
-            teams[i] = countries[i];
+            teams[i] = countryToTeamIndex[i + 1];
         }
-
         emit CountriesSet(countries);
     }
 
@@ -81,17 +83,46 @@ contract BriVault is ERC4626, Ownable {
         _transfer(msg.sender, address(this), stakeAsset);
 
         emit deposited (msg.sender, stakeAsset);
-
     }
 
     /**
     @dev allows users to join the event 
     */
-    function joinEvent (uint256 countryId) public  {
-        for (uint256 i; i < teams.length; ++i) {
-            require( countryToTeamIndex[i] == countryId, invalidCountry());
-        }
+    function joinEvent (uint256 countryId) public returns (uint256 shares) {
+        bool valid = false;
 
+        for (uint256 i = 0; i <= 48; ++i) {
+            if (countryToTeamIndex[countryId] == countryId) {
+                valid = true;
+                break;
+            }
+            require(valid, invalidCountry());
+        }
+        require(block.timestamp <= eventStartDate, eventStarted());
+
+        uint256 stakeAsset = depositAsset[msg.sender];
+
+        uint256 participantShares = _convertToShares(stakeAsset);
+
+        stakedAmount += depositAsset[msg.sender];
+
+        depositAsset[msg.sender] = 0;
+        numberOfParticipants++;
+
+        _mintShares (msg.sender, particioantShares);
+
+        emit joinedEvent (msg.sender, participantShares, countryId);
+        
+        return (uint256 participantShares);
+    }
+
+    function _convertToShares (uint256 assets) view internal returns (uint256 shares) {
+
+    }
+
+    function _mintShares (msg.sender, particioantShares) internal {
+
+        mint(address(0), particioantShares);
     }
 
     /**

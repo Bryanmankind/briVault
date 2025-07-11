@@ -28,4 +28,6 @@ we need to know the number of participants and total value
     User JoinEvent ==>
         * user is to pick a valid team.
         * get shears for the asset deposited 
+        * users should only join once.
+        * 
 
