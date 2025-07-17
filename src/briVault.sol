@@ -4,10 +4,12 @@ pragma solidity ^0.8.24;
 
 import {ERC4626} from "@openzeppelin-contracts/contracts/token/ERC20/extensions/ERC4626.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 
 contract BriVault is ERC4626, Ownable {
+    using SafeERC20 for IERC20;
 
     uint256 public participationFeeBsp;
     /**
@@ -60,12 +62,6 @@ contract BriVault is ERC4626, Ownable {
          totalAssetsShares = 1000000;                     // total asset manage by the vault
     }
 
-    /**
-    @dev receive sent eth
-     */
-    
-    receive() external payable {}
-
     modifier winnerSet () {
         if (_setWinner != true) {
           revert winnerNotSet();
@@ -81,22 +77,19 @@ contract BriVault is ERC4626, Ownable {
         emit CountriesSet(countries);
     }
 
-    function setWinner (uint256 countryId) public onlyOwner returns (bool) { // get winner in real time offchain
-        require(block.timestamp >= eventEndDate, eventNotEnded());
-        
-        for (uint256 i = 0; i <= 48; ++i) {
-            if (countryToTeamIndex[countryId] == countryId) {
-                valid = true;
-                break;
-            }
-            require(valid, invalidCountry()); 
+    function setWinner(uint256 countryId) public onlyOwner returns (bool) {
+        if (block.timestamp <= eventEndDate) {
+            revert eventNotEnded();
+        }
+
+        if (countryToTeamIndex[countryId] != 0) {
+            revert invalidCountry();
         }
 
         winner = countryToTeamIndex[countryId];
-
         _setWinner = true;
 
-        return (true)
+        return true;
     }
 
     function getWinner () public view returns (uint256) {
@@ -108,7 +101,7 @@ contract BriVault is ERC4626, Ownable {
     }
 
     function getVaultBalance () public view returns(uint256) {
-        address(this).balance;
+        return address(this).balance;
     }
 
     /**
@@ -123,15 +116,15 @@ contract BriVault is ERC4626, Ownable {
 
         depositAsset[receiver] = stakeAsset;
 
-        _transfer(msg.sender, participationFeeAddress, participationFeeBsp);
+        IER20(asserts).transferFrom(msg.sender, participationFeeAddress, participationFeeBsp);
 
-        _transfer(msg.sender, address(this), stakeAsset);
+        IER20(asserts).transferFrom(msg.sender, address(this), stakeAsset);
 
         emit deposited (receiver, stakeAsset);
     }
 
-    function _convertToShares (uint256 assets) view internal returns (uint256 shares) {
-        balanceOfVault = getVaultBalance();
+    function _convertToShares (uint256 assets) internal view returns (uint256 shares) {
+        uint256 balanceOfVault = getVaultBalance();
         shares = (assets * totalAssetsShares) / balanceOfVault;
     }
 
@@ -174,14 +167,14 @@ contract BriVault is ERC4626, Ownable {
      */
     function cancellParticipation () public  {
         if (block.timestamp >= eventStartDate){
-            eventStarted()
+           revert eventStarted();
         }
 
         refundAmount = depositAsset[msg.sender];
 
         depositAsset[msg.sender] = 0;
 
-        transferFrom(address(this), msg.sender, refundAmount);
+        IER20.transferFrom(address(this), msg.sender, refundAmount);
     }
 
     /**
@@ -202,15 +195,9 @@ contract BriVault is ERC4626, Ownable {
 
         _burn(msg.sender, shares);
 
-        transferFrom(address(this), msg.sender, assetToWithdraw);
+       IER20.transferFrom(address(this), msg.sender, assetToWithdraw);
 
         emit Withdraw (msg.sender, assetToWithdraw);
-    }
-
-    function sweepEth () public onlyOwner {
-        uint256 balance = address(this).balance;
-       (bool success,) = payable(msg.sender).call{value: balance}("");
-       require(success);
     }
 
 }
