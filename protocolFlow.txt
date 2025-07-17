@@ -18,7 +18,7 @@ Have a minimum amount to join the event with.
 
 users can be able to cancell before the event starts 
 
-we need to know the number of participants and total value
+we need to know the number of participants and total value in the vault
 
     Uers Deposit ==> 
         * funds are sent to the contract. 
@@ -31,3 +31,11 @@ we need to know the number of participants and total value
         * users should only join once.
         * map the user to the country they picked 
 
+    User cancellParticipation ==>
+        * user is able to get back their funds 
+        * users should not be able to join event
+        * users will receive funds with deducted fees.
+
+    User redeem
+        * only winners should get winning funds 
+        * 

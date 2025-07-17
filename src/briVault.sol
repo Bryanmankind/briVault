@@ -17,7 +17,9 @@ contract BriVault is ERC4626, Ownable {
     uint256 public eventStartDate;
     uint256 public eventEndDate;
     uint256 public  stakedAmount;
-    uint256 public totalAssets;
+    uint256 public totalAssetsShares;
+    uint256 public winner;
+    bool public _setWinner;
 
     // minimum amount to join in.
     uint256 public  minimumAmount; 
@@ -32,23 +34,30 @@ contract BriVault is ERC4626, Ownable {
     error eventStarted();
     error lowFeeAndAmount();
     error invalidCountry();
+    error eventNotEnded();
+    error didNotWin();
+    error notRegistered();
+    error winnerNotSet();
 
 
     event deposited (address indexed _depositor, uint256 _value);
     event CountriesSet(uint256[48] country);
     event joinedEvent(address user, uint256 _countryId);
+    event Withdraw (address user, uint256 _amount);  
 
     mapping (address => uint256) public depositAsset;
     mapping(uint256 => uint256) public countryToTeamIndex;
     mapping (address => uint256) public userToCountry;
     
 
-    constructor (IERC20 _asset, uint256 _participationFeeBsp, uint256 _eventStartDate, address _participationAddress, uint256 _minimumAmount) ERC4626 (_asset) ERC20("BriTechLabs", "BTT") Ownable(msg.sender) {
+    constructor (IERC20 _asset, uint256 _participationFeeBsp, uint256 _eventStartDate, address _participationAddress, uint256 _minimumAmount, uint256 _eventEndDate) ERC4626 (_asset) ERC20("BriTechLabs", "BTT") Ownable(msg.sender) {
          participationFeeBsp = _participationFeeBsp;
          eventStartDate = _eventStartDate;
+         eventEndDate = _eventEndDate;
          participationFeeAddress = _participationFeeAddress;
          minimumAmount= _minimumAmount;
-         totalAssets = 1000000;                     // total asset manage by the vault
+         _setWinner = false;
+         totalAssetsShares = 1000000;                     // total asset manage by the vault
     }
 
     /**
@@ -56,6 +65,13 @@ contract BriVault is ERC4626, Ownable {
      */
     
     receive() external payable {}
+
+    modifier winnerSet () {
+        if (_setWinner != true) {
+          revert winnerNotSet();
+        }
+        _;
+    }
 
     function setCountry(uint256[48] memory countries) public onlyOwner {
         for (uint256 i = 0; i < countries.length; ++i) {
@@ -65,12 +81,38 @@ contract BriVault is ERC4626, Ownable {
         emit CountriesSet(countries);
     }
 
+    function setWinner (uint256 countryId) public onlyOwner returns (bool) { // get winner in real time offchain
+        require(block.timestamp >= eventEndDate, eventNotEnded());
+        
+        for (uint256 i = 0; i <= 48; ++i) {
+            if (countryToTeamIndex[countryId] == countryId) {
+                valid = true;
+                break;
+            }
+            require(valid, invalidCountry()); 
+        }
+
+        winner = countryToTeamIndex[countryId];
+
+        _setWinner = true;
+
+        return (true)
+    }
+
+    function getWinner () public view returns (uint256) {
+        return winner;
+    }
+
     function getTeamIndexForCountry(uint256 countryId) external view returns (uint256) {
         return countryToTeamIndex[countryId];
     }
 
+    function getVaultBalance () public view returns(uint256) {
+        address(this).balance;
+    }
+
     /**
-    @dev allows users to deposit for the evevt.
+    @dev allows users to deposit for the event.
      */
     function deposit() public payable override {
         require(block.timestamp <= eventStartDate, eventStarted());
@@ -90,7 +132,7 @@ contract BriVault is ERC4626, Ownable {
     /**
     @dev allows users to join the event 
     */
-    function joinEvent (uint256 countryId) public returns (uint256 shares) {
+    function joinEvent (uint256 countryId) public returns (participantShares) {
         bool valid = false;
 
         for (uint256 i = 0; i <= 48; ++i) {
@@ -98,7 +140,7 @@ contract BriVault is ERC4626, Ownable {
                 valid = true;
                 break;
             }
-            require(valid, invalidCountry());
+            require(valid, invalidCountry()); 
         }
         require(block.timestamp <= eventStartDate, eventStarted());
 
@@ -114,31 +156,62 @@ contract BriVault is ERC4626, Ownable {
 
         numberOfParticipants++;
 
-        _mintShares (msg.sender, particioantShares);
+        _mintShares (msg.sender, participantShares);
 
         emit joinedEvent (msg.sender, participantShares, countryId);
 
-        return (uint256 participantShares);
     }
 
     function _convertToShares (uint256 assets) view internal returns (uint256 shares) {
-
+        balanceOfVault = getVaultBalance();
+        shares = (assets * totalAssetsShares) / balanceOfVault;
     }
 
-    function _mintShares (msg.sender, particioantShares) internal {
+    function _mintShares (msg.sender, participantShares) internal {
 
-        mint(address(0), particioantShares);
+        _mint(address(0), participantShares);
     }
 
     /**
     @dev cancell participation 
      */
-    function cancellParticipation () {}
+    function cancellParticipation () public  {
+        require(block.timestamp <= eventStartDate, eventStarted());
+        require(msg.sender == depositAsset[msg.sender], "not registered");
+
+        refundAmount = depositAsset[msg.sender];
+
+        depositAsset[msg.sender] = 0;
+
+        transferFrom(address(this), msg.sender, refundAmount);
+    }
 
     /**
     @dev allows users to get back there wins
     */
-    function redeem(shares, receiver, owner){}
+    function withdraw (uint256 shares) external winnerSet {
+        if (block.timestamp <= eventEndDate) {
+            revert eventNotEnded();
+        }
+
+        if (userToCountry[msg.sender] != winner) {
+            revert didNotWin();
+        }
+
+        uint256 assetToWithdraw = (shares * getVaultBalance) / totalAssetsShares;
+
+        _burn(msg.sender, shares);
+
+        transferFrom(address(this), msg.sender, assetToWithdraw);
+
+        emit Withdraw (msg.sender, assetToWithdraw);
+    }
+
+    function swepEth () public onlyOwner {
+        uint256 balance = address(this).balance;
+       (bool success,) = payable(msg.sender).call{value: balance}("");
+       require(success);
+    }
 
     function vaultNAV () {}
 
