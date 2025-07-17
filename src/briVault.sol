@@ -50,7 +50,7 @@ contract BriVault is ERC4626, Ownable {
     mapping (address => uint256) public userToCountry;
     
 
-    constructor (IERC20 _asset, uint256 _participationFeeBsp, uint256 _eventStartDate, address _participationAddress, uint256 _minimumAmount, uint256 _eventEndDate) ERC4626 (_asset) ERC20("BriTechLabs", "BTT") Ownable(msg.sender) {
+    constructor (IERC20 _asset, uint256 _participationFeeBsp, uint256 _eventStartDate, address _participationFeeAddress, uint256 _minimumAmount, uint256 _eventEndDate) ERC4626 (_asset) ERC20("BriTechLabs", "BTT") Ownable(msg.sender) {
          participationFeeBsp = _participationFeeBsp;
          eventStartDate = _eventStartDate;
          eventEndDate = _eventEndDate;
@@ -114,19 +114,20 @@ contract BriVault is ERC4626, Ownable {
     /**
     @dev allows users to deposit for the event.
      */
-    function deposit() public payable override {
+    function deposit(uint256 assets, address receiver) public override {
+        require(receiver != address(0));
         require(block.timestamp <= eventStartDate, eventStarted());
-        require(minimumAmount + participationFeeBsp <= msg.sender, lowFeeAndAmount());
+        require(minimumAmount + participationFeeBsp <= assets, lowFeeAndAmount());
 
-        uint256 stakeAsset = msg.value - participationFeeBsp;
+        uint256 stakeAsset = assets - participationFeeBsp;
 
-        depositAsset[msg.sender] = stakeAsset;
+        depositAsset[receiver] = stakeAsset;
 
-        _transfer(msg.sender, participationAddress, participationFeeBsp);
+        _transfer(msg.sender, participationFeeAddress, participationFeeBsp);
 
         _transfer(msg.sender, address(this), stakeAsset);
 
-        emit deposited (msg.sender, stakeAsset);
+        emit deposited (receiver, stakeAsset);
     }
 
     /**
@@ -212,8 +213,6 @@ contract BriVault is ERC4626, Ownable {
        (bool success,) = payable(msg.sender).call{value: balance}("");
        require(success);
     }
-
-    function vaultNAV () {}
 
 }
 

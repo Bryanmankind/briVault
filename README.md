@@ -1,4 +1,4 @@
-### RC4626 Tournament Vault – Betting
+### ERC4626 Tournament Vault – Betting
 This smart contract implements a tournament betting vault using the ERC4626 tokenized vault standard. It allows users to deposit an ERC20 asset to bet on a team, and at the end of the tournament, winners share the pool based on the value of their deposits.
 
 ## Overview
