@@ -92,7 +92,7 @@ contract BriVault is ERC4626, Ownable {
         winner = countryToTeamIndex[countryId];
         _setWinner = true;
 
-        return true;
+        return _setWinner;
     }
 
     function getWinner () public view returns (uint256) {
@@ -110,10 +110,16 @@ contract BriVault is ERC4626, Ownable {
     /**
     @dev allows users to deposit for the event.
      */
-    function deposit(uint256 assets, address receiver) public override returns (uint256 shears) {
+    function deposit(uint256 assets, address receiver) public override returns (uint256) {
         require(receiver != address(0));
-        require(block.timestamp <= eventStartDate, eventStarted());
-        require(minimumAmount + participationFeeBsp <= assets, lowFeeAndAmount());
+
+        if (block.timestamp >= eventStartDate) {
+            revert eventStarted();
+        }
+
+        if (minimumAmount + participationFeeBsp < assets) {
+            revert lowFeeAndAmount();
+        }
 
         uint256 stakeAsset = assets - participationFeeBsp;
 
@@ -137,8 +143,7 @@ contract BriVault is ERC4626, Ownable {
     @dev allows users to join the event 
     */
     function joinEvent (uint256 countryId) public returns (uint256 participantShares) {
-        require(depositAsset[msg.sender] > 0, "No deposit found");
-        if (depositAsset[msg.sender] < 0) {
+        if (depositAsset[msg.sender] == 0) {
             revert noDeposit();
         }
 

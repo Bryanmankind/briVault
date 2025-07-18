@@ -39,3 +39,11 @@ we need to know the number of participants and total value in the vault
     User redeem
         * only winners should get winning funds 
         * 
+
+    Using Oasis tech
+        * Users address and amount will be kept private 
+
+
+Build thought problem 
+if users win more than the lossers the value of assets might be small to shear among all winning useres. 
+if all win depending on the number of users what happen sto the funds. 
