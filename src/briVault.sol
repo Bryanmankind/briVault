@@ -2,15 +2,17 @@
 
 pragma solidity ^0.8.24;
 
-import {ERC4626} from "@openzeppelin-contracts/contracts/token/ERC20/extensions/ERC4626.sol";
+import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 
 contract BriVault is ERC4626, Ownable {
-    using SafeERC20 for IERC20;
 
+    using SafeERC20 for IERC20;
+    
     uint256 public participationFeeBsp;
     /**
     @dev participationFee address
@@ -107,7 +109,7 @@ contract BriVault is ERC4626, Ownable {
     /**
     @dev allows users to deposit for the event.
      */
-    function deposit(uint256 assets, address receiver) public override {
+    function deposit(uint256 assets, address receiver) public override returns (uint256 shears) {
         require(receiver != address(0));
         require(block.timestamp <= eventStartDate, eventStarted());
         require(minimumAmount + participationFeeBsp <= assets, lowFeeAndAmount());
@@ -116,9 +118,9 @@ contract BriVault is ERC4626, Ownable {
 
         depositAsset[receiver] = stakeAsset;
 
-        IER20(asserts).transferFrom(msg.sender, participationFeeAddress, participationFeeBsp);
+        IERC20(asset()).transferFrom(msg.sender, participationFeeAddress, participationFeeBsp);
 
-        IER20(asserts).transferFrom(msg.sender, address(this), stakeAsset);
+        IERC20(asset()).transferFrom(msg.sender, address(this), stakeAsset);
 
         emit deposited (receiver, stakeAsset);
     }
@@ -135,7 +137,7 @@ contract BriVault is ERC4626, Ownable {
         bool valid = false;
 
         for (uint256 i = 0; i <= 48; ++i) {
-            if (countryToTeamIndex[countryId] == countryId) {
+            if (countryToTeamIndex[i] == countryId) {
                 valid = true;
                 break;
             }
@@ -151,7 +153,7 @@ contract BriVault is ERC4626, Ownable {
 
         stakedAmount += depositAsset[msg.sender];
 
-        userToCountry[msg.sender] = [countryId];
+        userToCountry[msg.sender] = countryId;
 
         depositAsset[msg.sender] = 0;
 
@@ -170,11 +172,11 @@ contract BriVault is ERC4626, Ownable {
            revert eventStarted();
         }
 
-        refundAmount = depositAsset[msg.sender];
+        uint256 refundAmount = depositAsset[msg.sender];
 
         depositAsset[msg.sender] = 0;
 
-        IER20.transferFrom(address(this), msg.sender, refundAmount);
+        transferFrom(address(this), msg.sender, refundAmount);
     }
 
     /**
@@ -195,7 +197,7 @@ contract BriVault is ERC4626, Ownable {
 
         _burn(msg.sender, shares);
 
-       IER20.transferFrom(address(this), msg.sender, assetToWithdraw);
+       transferFrom(address(this), msg.sender, assetToWithdraw);
 
         emit Withdraw (msg.sender, assetToWithdraw);
     }
