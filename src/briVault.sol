@@ -54,6 +54,8 @@ contract BriVault is ERC4626, Ownable {
     using SafeERC20 for IERC20;
     
     uint256 public participationFeeBsp;
+
+    uint256 constant PRECISION = 1e18;
     /**
     @dev participationFee address
      */
@@ -198,7 +200,8 @@ contract BriVault is ERC4626, Ownable {
 
     function _convertToShares (uint256 assets) internal view returns (uint256 shares) {
         uint256 balanceOfVault = address(this).balance;
-        shares = (assets * totalAssetsShares) / balanceOfVault;
+        shares = (assets * totalAssetsShares * PRECISION) / balanceOfVault;
+        shares = shares / PRECISION;
     }
 
     /**
@@ -270,7 +273,8 @@ contract BriVault is ERC4626, Ownable {
             revert didNotWin();
         }
 
-        uint256 assetToWithdraw = (shares * finalizedVaultAsset) / totalWinnerShares;
+        uint256 assetToWithdraw = (shares * finalizedVaultAsset * 1e18) / totalWinnerShares;
+        uint256 assetToWithdraw = assetToWithdraw * 1e18
 
         _burn(msg.sender, shares);
 
