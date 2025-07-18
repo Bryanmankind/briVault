@@ -42,6 +42,7 @@ contract BriVault is ERC4626, Ownable {
     error didNotWin();
     error notRegistered();
     error winnerNotSet();
+    error noDeposit();
 
 
     event deposited (address indexed _depositor, uint256 _value);
@@ -123,6 +124,8 @@ contract BriVault is ERC4626, Ownable {
         IERC20(asset()).transferFrom(msg.sender, address(this), stakeAsset);
 
         emit deposited (receiver, stakeAsset);
+
+        return 0;
     }
 
     function _convertToShares (uint256 assets) internal view returns (uint256 shares) {
@@ -134,6 +137,11 @@ contract BriVault is ERC4626, Ownable {
     @dev allows users to join the event 
     */
     function joinEvent (uint256 countryId) public returns (uint256 participantShares) {
+        require(depositAsset[msg.sender] > 0, "No deposit found");
+        if (depositAsset[msg.sender] < 0) {
+            revert noDeposit();
+        }
+
         bool valid = false;
 
         for (uint256 i = 0; i <= 48; ++i) {
