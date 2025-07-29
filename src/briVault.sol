@@ -36,7 +36,7 @@ contract BriVault is ERC4626, Ownable {
     uint256 public numberOfParticipants;
 
     // Array of teams 
-    uint256[48] public teams;
+    string[48] public teams;
     address[] public usersAddress;
 
     // Error Logs
@@ -56,9 +56,9 @@ contract BriVault is ERC4626, Ownable {
     event Withdraw (address user, uint256 _amount);  
 
     mapping (address => uint256) public depositAsset;
-    mapping(uint256 => uint256) public countryToTeamIndex;
-    mapping (address => uint256) public userToCountry;
-    mapping (address => mapping (uint256 => uint256)) public userSharesToCountry;
+    mapping(uint256 => string) public teamIndexToCountry;
+    mapping (address => address) public userToCountry;
+    mapping (address => mapping (uint256 => string)) public userSharesToCountry;
     
 
     constructor (IERC20 _asset, uint256 _participationFeeBsp, uint256 _eventStartDate, address _participationFeeAddress, uint256 _minimumAmount, uint256 _eventEndDate) ERC4626 (_asset) ERC20("BriTechLabs", "BTT") Ownable(msg.sender) {
@@ -66,7 +66,7 @@ contract BriVault is ERC4626, Ownable {
          eventStartDate = _eventStartDate;
          eventEndDate = _eventEndDate;
          participationFeeAddress = _participationFeeAddress;
-         minimumAmount= _minimumAmount;
+         minimumAmount = _minimumAmount;
          _setWinner = false;
          totalAssetsShares = 1000000;                     // total asset manage by the vault
     }
@@ -78,7 +78,7 @@ contract BriVault is ERC4626, Ownable {
         _;
     }
 
-    function setCountry(uint256[48] memory countries) public onlyOwner {
+    function setCountry(string[48] memory countries) public onlyOwner {
         for (uint256 i = 0; i < countries.length; ++i) {
             countryToTeamIndex[i + 1] = countries[i];
             teams[i] = countryToTeamIndex[i + 1];
@@ -232,7 +232,8 @@ contract BriVault is ERC4626, Ownable {
         }
 
         uint256 assetToWithdraw = (shares * finalizedVaultAsset * 1e18) / totalWinnerShares;
-        uint256 assetToWithdraw = assetToWithdraw * 1e18
+
+        assetToWithdraw = assetToWithdraw * 1e18;
 
         _burn(msg.sender, shares);
 
