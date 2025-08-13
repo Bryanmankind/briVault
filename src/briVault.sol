@@ -55,7 +55,7 @@ contract BriVault is ERC4626, Ownable {
     event deposited (address indexed _depositor, uint256 _value);
     event CountriesSet(string[48] country);
     event WinnerSet (string winnerSet);
-    event joinedEventb(address user, uint256 _countryId);
+    event joinedEvent (address user, uint256 _countryId);
     event Withdraw (address user, uint256 _amount);  
 
     mapping (address => uint256) public depositAsset;
@@ -104,9 +104,10 @@ contract BriVault is ERC4626, Ownable {
 
         _getWinnerShares();
 
+        emit WinnerSet (winner);
+        
         return _setWinner;
 
-        emit WinnerSet (winner);
     }
 
     function setFinallizedVaultBalance () public onlyOwner returns (uint256) {
