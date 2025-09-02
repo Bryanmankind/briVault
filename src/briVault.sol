@@ -6,7 +6,7 @@ import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.so
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Ownable} from "../lib/openzeppelin-contracts/contracts/access/Ownable.sol";
 
 
 contract BriVault is ERC4626, Ownable {
@@ -51,6 +51,7 @@ contract BriVault is ERC4626, Ownable {
     error winnerNotSet();
     error noDeposit();
     error eventNotStarted();
+    error WinnerAlreadySet();
 
     event deposited (address indexed _depositor, uint256 _value);
     event CountriesSet(string[48] country);
@@ -88,17 +89,19 @@ contract BriVault is ERC4626, Ownable {
 }
 
 
-    function setWinner(uint256 countryId) public onlyOwner returns (bool) {
+    function setWinner(uint256 countryIndex) public onlyOwner returns (string memory) {
         if (block.timestamp <= eventEndDate) {
             revert eventNotEnded();
         }
 
-        if (bytes(teams[countryId]).length == 0) {
-            revert invalidCountry();
+        require(countryIndex < teams.length, "Invalid country index");
+
+        if (_setWinner) {
+        revert WinnerAlreadySet();
         }
 
-        winnerCountryId = countryId;
-        winner = teams[countryId];
+        winnerCountryId = countryIndex;
+        winner = teams[countryIndex];
 
         _setWinner = true;
 
@@ -106,7 +109,7 @@ contract BriVault is ERC4626, Ownable {
 
         emit WinnerSet (winner);
         
-        return _setWinner;
+        return winner;
 
     }
 
