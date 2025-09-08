@@ -12,8 +12,8 @@ import {Ownable} from "../lib/openzeppelin-contracts/contracts/access/Ownable.so
 contract BriVault is ERC4626, Ownable {
 
     using SafeERC20 for IERC20;
-    
-    uint256 public participationFeeBsp;
+
+    uint256 public participationFeeBsp = 150; // fee in basis points (1.5%)
 
     uint256 constant PRECISION = 1e18;
     /**
@@ -27,6 +27,7 @@ contract BriVault is ERC4626, Ownable {
     string public winner;
     uint256 public finalizedVaultAsset;
     uint256 public totalWinnerShares;
+    uint256 public totalParticipantShares;
     bool public _setWinner;
     uint256 public winnerCountryId;
 
@@ -71,7 +72,6 @@ contract BriVault is ERC4626, Ownable {
          participationFeeAddress = _participationFeeAddress;
          minimumAmount = _minimumAmount;
          _setWinner = false;
-         totalAssetsShares = 1000000;                     // total asset manage by the vault
     }
 
     modifier winnerSet () {
@@ -97,15 +97,13 @@ contract BriVault is ERC4626, Ownable {
         require(countryIndex < teams.length, "Invalid country index");
 
         if (_setWinner) {
-        revert WinnerAlreadySet();
+            revert WinnerAlreadySet();
         }
 
         winnerCountryId = countryIndex;
         winner = teams[countryIndex];
 
         _setWinner = true;
-
-        _getWinnerShares();
 
         emit WinnerSet (winner);
         
@@ -118,7 +116,7 @@ contract BriVault is ERC4626, Ownable {
             revert eventNotStarted();
         }
 
-        return finalizedVaultAsset = address(this).balance;
+        return finalizedVaultAsset = IERC20(asset()).balanceOf(address(this));
     }
 
     function getWinner () public view returns (string memory) {
@@ -133,7 +131,7 @@ contract BriVault is ERC4626, Ownable {
         return teams[countryId];
     }
 
-    function _getWinnerShares () internal returns (uint256) {
+    function _getWinnerShares () internal winnerSet returns (uint256) {
 
         for (uint256 i = 0; i < usersAddress.length; ++i){
             address user = usersAddress[i]; 
@@ -151,14 +149,14 @@ contract BriVault is ERC4626, Ownable {
         if (block.timestamp >= eventStartDate) {
             revert eventStarted();
         }
-
-        if (minimumAmount + participationFeeBsp < assets) {
+        // charge on a percentage basis points
+        if (minimumAmount + participationFeeBsp > assets) {
             revert lowFeeAndAmount();
         }
 
         uint256 stakeAsset = assets - participationFeeBsp;
 
-        depositAsset[receiver] = stakeAsset;
+        depositAsset[receiver] = assets;
 
         IERC20(asset()).transferFrom(msg.sender, participationFeeAddress, participationFeeBsp);
 
@@ -169,11 +167,18 @@ contract BriVault is ERC4626, Ownable {
         return 0;
     }
 
-    function _convertToShares (uint256 assets) internal view returns (uint256 shares) {
-        uint256 balanceOfVault = address(this).balance;
-        shares = (assets * totalAssetsShares * PRECISION) / balanceOfVault;
-        shares = shares / PRECISION;
+function _convertToShares(uint256 assets) internal view returns (uint256 shares) {
+    uint256 balanceOfVault = IERC20(asset()).balanceOf(address(this));
+    uint256 totalShares = totalSupply(); // total minted BTT shares so far
+
+    if (totalShares == 0 || balanceOfVault == 0) {
+        // First depositor: 1:1 ratio
+        return assets;
     }
+
+    shares = (assets * totalShares) / balanceOfVault;
+}
+
 
     /**
     @dev allows users to join the event 
@@ -188,7 +193,9 @@ function joinEvent(uint256 countryId) public returns (uint256 participantShares)
         revert invalidCountry();
     }
 
-    require(block.timestamp <= eventStartDate, "eventStarted");
+    if (block.timestamp > eventStartDate) {
+        revert eventStarted();
+    }
 
     uint256 stakeAsset = depositAsset[msg.sender];
 
@@ -199,6 +206,7 @@ function joinEvent(uint256 countryId) public returns (uint256 participantShares)
     // Assign user to country
     userToCountry[msg.sender] = teams[countryId];
     userSharesToCountry[msg.sender][countryId] = participantShares;
+
 
     depositAsset[msg.sender] = 0;
 
@@ -212,9 +220,9 @@ function joinEvent(uint256 countryId) public returns (uint256 participantShares)
 
 
     /**
-    @dev cancell participation 
+    @dev cancel participation
      */
-    function cancellParticipation () public  {
+    function cancelParticipation () public  {
         if (block.timestamp >= eventStartDate){
            revert eventStarted();
         }
@@ -223,30 +231,36 @@ function joinEvent(uint256 countryId) public returns (uint256 participantShares)
 
         depositAsset[msg.sender] = 0;
 
-        transferFrom(address(this), msg.sender, refundAmount);
+        IERC20(asset()).transfer(msg.sender, refundAmount);
     }
 
     /**
     @dev allows users to get back there wins
     */
-    function withdraw (uint256 shares) external winnerSet {
-        if (block.timestamp <= eventEndDate) {
-            revert eventNotEnded();
-        }
-
-         if (keccak256(abi.encodePacked(userToCountry[msg.sender])) != keccak256(abi.encodePacked(winner))) {
-             revert didNotWin();
-        }
-
-        uint256 assetToWithdraw = (shares * finalizedVaultAsset * 1e18) / totalWinnerShares;
-
-        assetToWithdraw = assetToWithdraw * 1e18;
-
-        _burn(msg.sender, shares);
-
-       transferFrom(address(this), msg.sender, assetToWithdraw);
-
-        emit Withdraw (msg.sender, assetToWithdraw);
+function withdraw(uint256 shares) external winnerSet {
+    if (block.timestamp < eventEndDate) {
+        revert eventNotEnded();
     }
+
+    _getWinnerShares();
+
+    if (
+        keccak256(abi.encodePacked(userToCountry[msg.sender])) !=
+        keccak256(abi.encodePacked(winner))
+    ) {
+        revert didNotWin();
+    }
+
+    uint256 vaultBalance = IERC20(asset()).balanceOf(address(this));
+    uint256 assetToWithdraw = (shares * vaultBalance) / totalWinnerShares;
+
+    _burn(msg.sender, shares);
+
+    IERC20(asset()).transfer(msg.sender, assetToWithdraw);
+
+    emit Withdraw(msg.sender, assetToWithdraw);
+}
+
+
 
 }
