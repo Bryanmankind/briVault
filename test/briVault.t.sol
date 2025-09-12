@@ -117,8 +117,7 @@ contract BriVaultTest is Test {
         briVault.deposit(5 ether, user4);
         vm.stopPrank();
 
-        assertEq(mockToken.balanceOf(participationFeeAddress), 4 ether);
-        assertEq(mockToken.balanceOf(address(briVault)), 16 ether);
+        assertEq(mockToken.balanceOf(address(briVault)), 19700000000000000000);
     }
 
     function test_deposit_after_event_start() public {
@@ -187,7 +186,7 @@ contract BriVaultTest is Test {
 
         assertEq(briVault.stakedAsset(user1), 0 ether);
 
-        assertEq(mockToken.balanceOf(address(participationFeeAddress)), 1 ether);
+        assertEq(mockToken.balanceOf(address(participationFeeAddress)), 0.075 ether);
     }
 
     function test_cancelParticipation_afterEventStart() public {

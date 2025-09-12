@@ -10,12 +10,12 @@ The vault is fully ERC4626-compliant, enabling integrations with DeFi protocols 
 ## Deposit Phase
 Users deposit an ERC20 token (e.g., USDC) before the eventStartDate.
 
-Users must choose a team to bet on during deposit.
+Users must choose a team to bet on.
 
 ## Locking Phase
 After the tournament starts, no more deposits or team changes are allowed.
 
-Vault may earn yield depending on its strategy (e.g., Yearn, Aave).
+Vault may earn yield depending on its strategy (e.g., Yearn, Aave). to be added. 
 
 ## Result Phase
 Once the tournament ends (eventEndDate), the owner sets the winner.
