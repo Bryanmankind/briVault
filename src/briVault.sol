@@ -7,15 +7,17 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Ownable} from "../lib/openzeppelin-contracts/contracts/access/Ownable.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 
 contract BriVault is ERC4626, Ownable {
 
     using SafeERC20 for IERC20;
 
-    uint256 public participationFeeBsp = 150; // fee in basis points (1.5%)
+    uint256 public participationFeeBsp;
 
     uint256 constant PRECISION = 1e18;
+    uint256 constant BASE = 10000;
     /**
     @dev participationFee address
      */
@@ -60,7 +62,7 @@ contract BriVault is ERC4626, Ownable {
     event joinedEvent (address user, uint256 _countryId);
     event Withdraw (address user, uint256 _amount);  
 
-    mapping (address => uint256) public depositAsset;
+    mapping (address => uint256) public stakedAsset;
     mapping (address => string) public userToCountry;
     mapping(address => mapping(uint256 => uint256)) public userSharesToCountry;
     
@@ -105,13 +107,17 @@ contract BriVault is ERC4626, Ownable {
 
         _setWinner = true;
 
+        _getWinnerShares();
+
+        _setFinallizedVaultBalance();
+
         emit WinnerSet (winner);
         
         return winner;
 
     }
 
-    function setFinallizedVaultBalance () public onlyOwner returns (uint256) {
+    function _setFinallizedVaultBalance () public returns (uint256) {
         if (block.timestamp <= eventStartDate) {
             revert eventNotStarted();
         }
@@ -131,7 +137,7 @@ contract BriVault is ERC4626, Ownable {
         return teams[countryId];
     }
 
-    function _getWinnerShares () internal winnerSet returns (uint256) {
+    function _getWinnerShares () internal returns (uint256) {
 
         for (uint256 i = 0; i < usersAddress.length; ++i){
             address user = usersAddress[i]; 
@@ -140,7 +146,11 @@ contract BriVault is ERC4626, Ownable {
         return totalWinnerShares;
     }
 
-    /**
+    function _getParticipationFee(uint256 assets) internal view returns (uint256) {
+        return (assets * participationFeeBsp) / BASE;
+    }
+
+    /** 
     @dev allows users to deposit for the event.
      */
     function deposit(uint256 assets, address receiver) public override returns (uint256) {
@@ -149,22 +159,30 @@ contract BriVault is ERC4626, Ownable {
         if (block.timestamp >= eventStartDate) {
             revert eventStarted();
         }
+
+        uint256 fee = _getParticipationFee(assets);
         // charge on a percentage basis points
-        if (minimumAmount + participationFeeBsp > assets) {
+        if (minimumAmount + fee > assets) {
             revert lowFeeAndAmount();
         }
 
-        uint256 stakeAsset = assets - participationFeeBsp;
+        uint256 stakeAsset = assets - fee;
 
-        depositAsset[receiver] = assets;
+        stakedAsset[receiver] = stakeAsset;
 
-        IERC20(asset()).transferFrom(msg.sender, participationFeeAddress, participationFeeBsp);
+        uint256 participantShares = _convertToShares(stakeAsset);
+
+
+        IERC20(asset()).transferFrom(msg.sender, participationFeeAddress, fee);
 
         IERC20(asset()).transferFrom(msg.sender, address(this), stakeAsset);
 
+        _mint(msg.sender, participantShares);
+
+
         emit deposited (receiver, stakeAsset);
 
-        return 0;
+        return participantShares;
     }
 
 function _convertToShares(uint256 assets) internal view returns (uint256 shares) {
@@ -176,47 +194,41 @@ function _convertToShares(uint256 assets) internal view returns (uint256 shares)
         return assets;
     }
 
-    shares = (assets * totalShares) / balanceOfVault;
+    shares = Math.mulDiv(assets, totalShares, balanceOfVault);
 }
 
 
     /**
     @dev allows users to join the event 
     */
-function joinEvent(uint256 countryId) public returns (uint256 participantShares) {
-    if (depositAsset[msg.sender] == 0) {
-        revert noDeposit();
+    function joinEvent(uint256 countryId) public {
+        if (stakedAsset[msg.sender] == 0) {
+            revert noDeposit();
+        }
+
+        // Ensure countryId is a valid index in the `teams` array
+        if (countryId >= teams.length) {
+            revert invalidCountry();
+        }
+
+        if (block.timestamp > eventStartDate) {
+            revert eventStarted();
+        }
+
+        
+        userToCountry[msg.sender] = teams[countryId];
+
+        
+        uint256 participantShares = balanceOf(msg.sender);
+        userSharesToCountry[msg.sender][countryId] = participantShares;
+
+        usersAddress.push(msg.sender);
+
+        numberOfParticipants++;
+        totalParticipantShares += participantShares;
+
+        emit joinedEvent(msg.sender, countryId);
     }
-
-    // Ensure countryId is a valid index in the `teams` array
-    if (countryId >= teams.length) {
-        revert invalidCountry();
-    }
-
-    if (block.timestamp > eventStartDate) {
-        revert eventStarted();
-    }
-
-    uint256 stakeAsset = depositAsset[msg.sender];
-
-    participantShares = _convertToShares(stakeAsset);
-
-    stakedAmount += stakeAsset;
-
-    // Assign user to country
-    userToCountry[msg.sender] = teams[countryId];
-    userSharesToCountry[msg.sender][countryId] = participantShares;
-
-
-    depositAsset[msg.sender] = 0;
-
-    usersAddress.push(msg.sender);
-    numberOfParticipants++;
-
-    _mint(msg.sender, participantShares);
-
-    emit joinedEvent(msg.sender, countryId);
-}
 
 
     /**
@@ -227,9 +239,9 @@ function joinEvent(uint256 countryId) public returns (uint256 participantShares)
            revert eventStarted();
         }
 
-        uint256 refundAmount = depositAsset[msg.sender];
+        uint256 refundAmount = stakedAsset[msg.sender];
 
-        depositAsset[msg.sender] = 0;
+        stakedAsset[msg.sender] = 0;
 
         IERC20(asset()).transfer(msg.sender, refundAmount);
     }
@@ -237,12 +249,10 @@ function joinEvent(uint256 countryId) public returns (uint256 participantShares)
     /**
     @dev allows users to get back there wins
     */
-function withdraw(uint256 shares) external winnerSet {
+function withdraw() external winnerSet {
     if (block.timestamp < eventEndDate) {
         revert eventNotEnded();
     }
-
-    _getWinnerShares();
 
     if (
         keccak256(abi.encodePacked(userToCountry[msg.sender])) !=
@@ -250,10 +260,11 @@ function withdraw(uint256 shares) external winnerSet {
     ) {
         revert didNotWin();
     }
+    uint256 shares = balanceOf(msg.sender);
 
-    uint256 vaultBalance = IERC20(asset()).balanceOf(address(this));
-    uint256 assetToWithdraw = (shares * vaultBalance) / totalWinnerShares;
-
+    uint256 vaultAsset = finalizedVaultAsset;
+    uint256 assetToWithdraw = Math.mulDiv(shares, vaultAsset, totalWinnerShares);
+    
     _burn(msg.sender, shares);
 
     IERC20(asset()).transfer(msg.sender, assetToWithdraw);

@@ -38,7 +38,7 @@ contract BriVaultTest is Test {
     ];
 
     function setUp() public {
-        participationFeeBsp = 1 ether;
+        participationFeeBsp = 150; // 1.5%
         eventStartDate = block.timestamp + 2 days;
         eventEndDate = eventStartDate + 31 days;
         participationFeeAddress = makeAddr("participationFeeAddress");
@@ -141,33 +141,33 @@ contract BriVaultTest is Test {
     function test_joinEvent_success() public {
         vm.startPrank(user1);
         mockToken.approve(address(briVault), 5 ether);
-        briVault.deposit(5 ether, user1);
+        uint256 user1shares = briVault.deposit(5 ether, user1);
 
-        uint256 user1shares = briVault.joinEvent(10);
+        briVault.joinEvent(10);
         console.log("user1 shares", user1shares);
         vm.stopPrank();
 
         vm.startPrank(user2);
         mockToken.approve(address(briVault), 5 ether);
-        briVault.deposit(5 ether, user2);
+        uint256 user2shares = briVault.deposit(5 ether, user2);
 
-        uint256 user2shares = briVault.joinEvent(20);
+        briVault.joinEvent(20);
         console.log("user2 shares", user2shares);
         vm.stopPrank();
 
         vm.startPrank(user3);
         mockToken.approve(address(briVault), 5 ether);
-        briVault.deposit(5 ether, user3);
+         uint256 user3shares = briVault.deposit(5 ether, user3);
       
-        uint256 user3shares = briVault.joinEvent(30);
+        briVault.joinEvent(30);
         console.log("user3 shares", user3shares);
         vm.stopPrank();
 
         vm.startPrank(user4);
         mockToken.approve(address(briVault), 5 ether);
-        briVault.deposit(5 ether, user4);
+         uint256 user4shares =  briVault.deposit(5 ether, user4);
     
-        uint256 user4shares = briVault.joinEvent(40);
+        briVault.joinEvent(40);
         console.log("user4 shares", user4shares);
         vm.stopPrank();
         
@@ -185,7 +185,7 @@ contract BriVaultTest is Test {
         briVault.cancelParticipation();
         vm.stopPrank();
 
-        assertEq(briVault.depositAsset(user1), 0 ether);
+        assertEq(briVault.stakedAsset(user1), 0 ether);
 
         assertEq(mockToken.balanceOf(address(participationFeeAddress)), 1 ether);
     }
@@ -207,29 +207,31 @@ contract BriVaultTest is Test {
 
         vm.startPrank(user1);
         mockToken.approve(address(briVault), 5 ether);
-        briVault.deposit(5 ether, user1);
-        uint256 user1Shares = briVault.joinEvent(10);
+        uint256 user1Shares =  briVault.deposit(5 ether, user1);
+        briVault.joinEvent(10);
+        uint256 balanceBeforuser1 = mockToken.balanceOf(user1);
         vm.stopPrank();
 
         vm.startPrank(user2);
         mockToken.approve(address(briVault), 5 ether);
-        briVault.deposit(5 ether, user2);
-        uint256 user2Shares = briVault.joinEvent(10);
+        uint256 user2Shares = briVault.deposit(5 ether, user2);
+        briVault.joinEvent(10);
+        uint256 balanceBeforuser2 = mockToken.balanceOf(user2);
         vm.stopPrank();
 
         vm.startPrank(user3);
         mockToken.approve(address(briVault), 5 ether);
-        briVault.deposit(5 ether, user3);
-        uint256 user3Shares = briVault.joinEvent(30);
+        uint256 user3Shares = briVault.deposit(5 ether, user3);
+        briVault.joinEvent(30);
         vm.stopPrank();
 
         vm.startPrank(user4);
         mockToken.approve(address(briVault), 5 ether);
-        briVault.deposit(5 ether, user4);
-        uint256 user4Shares = briVault.joinEvent(10);
+        uint256 user4Shares = briVault.deposit(5 ether, user4);
+        briVault.joinEvent(10);
+        uint256 balanceBeforuser4 = mockToken.balanceOf(user4);
         vm.stopPrank();
 
-        console.log(briVault.finalizedVaultAsset());
         console.log( user3Shares);
         console.log( user2Shares);
         console.log( user1Shares);
@@ -238,28 +240,30 @@ contract BriVaultTest is Test {
         vm.warp(eventEndDate + 1);
         vm.startPrank(owner);
         briVault.setWinner(10);
+        console.log(briVault.finalizedVaultAsset());
         vm.stopPrank();
 
         vm.startPrank(user1);
-        briVault.withdraw(user1Shares);
-        console.log("winner shares", briVault.totalWinnerShares());
+        briVault.withdraw();
         vm.stopPrank();
 
         vm.startPrank(user2);
-        briVault.withdraw(user2Shares);
+        briVault.withdraw();
         vm.stopPrank();
 
+        vm.startPrank(user3);
+        vm.expectRevert(abi.encodeWithSignature("didNotWin()"));
+        briVault.withdraw();
+        vm.stopPrank();
 
-      uint256 vaultBalance = mockToken.balanceOf(address(briVault));
-        uint256 totalWinnerShares = briVault.totalWinnerShares();
+        vm.startPrank(user4);
+        briVault.withdraw();
+        vm.stopPrank();
 
-        uint256 expected1 = (user1Shares * (20 ether)) / totalWinnerShares;
-        uint256 expected2 = (user2Shares * (20 ether)) / totalWinnerShares;
-
-        assertApproxEqAbs(mockToken.balanceOf(user1), expected1, 1e12);
-        assertApproxEqAbs(mockToken.balanceOf(user2), expected2, 1e12);
-
+     assertEq(mockToken.balanceOf(user1), balanceBeforuser1 + 6566666666666666666);
+     assertEq(mockToken.balanceOf(user2), balanceBeforuser2 + 6566666666666666666);
+     assertEq(mockToken.balanceOf(user4), balanceBeforuser4 + 6566666666666666666);
+       
     }
-
     
 }
