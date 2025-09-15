@@ -17,6 +17,7 @@ contract BriVault is ERC4626, Ownable {
     uint256 public participationFeeBsp;
 
     uint256 constant BASE = 10000;
+    uint256 constant PARTICIPATIONFEEBSPMAX = 300; 
     /**
     @dev participationFee address
      */
@@ -64,6 +65,7 @@ contract BriVault is ERC4626, Ownable {
     error noDeposit();
     error eventNotStarted();
     error WinnerAlreadySet();
+    error limiteExceede();
 
     event deposited (address indexed _depositor, uint256 _value);
     event CountriesSet(string[48] country);
@@ -77,6 +79,10 @@ contract BriVault is ERC4626, Ownable {
     
 
     constructor (IERC20 _asset, uint256 _participationFeeBsp, uint256 _eventStartDate, address _participationFeeAddress, uint256 _minimumAmount, uint256 _eventEndDate) ERC4626 (_asset) ERC20("BriTechLabs", "BTT") Ownable(msg.sender) {
+         if (_participationFeeBsp > PARTICIPATIONFEEBSPMAX){
+            revert limiteExceede();
+         }
+         
          participationFeeBsp = _participationFeeBsp;
          eventStartDate = _eventStartDate;
          eventEndDate = _eventEndDate;
