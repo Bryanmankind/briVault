@@ -224,9 +224,9 @@ contract BriVault is ERC4626, Ownable {
         uint256 participantShares = _convertToShares(stakeAsset);
 
 
-        IERC20(asset()).transferFrom(msg.sender, participationFeeAddress, fee);
+        IERC20(asset()).safeTransferFrom(msg.sender, participationFeeAddress, fee);
 
-        IERC20(asset()).transferFrom(msg.sender, address(this), stakeAsset);
+        IERC20(asset()).safeTransferFrom(msg.sender, address(this), stakeAsset);
 
         _mint(msg.sender, participantShares);
 
@@ -285,7 +285,7 @@ contract BriVault is ERC4626, Ownable {
         
         _burn(msg.sender, shares);
 
-        IERC20(asset()).transfer(msg.sender, refundAmount);
+        IERC20(asset()).safeTransfer(msg.sender, refundAmount);
     }
 
         /**

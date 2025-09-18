@@ -45,7 +45,8 @@ we need to know the number of participants and total value in the vault
 
 
 To be worked on 
--- Let the assets be sent to a aave strategy to yeran yeilds for the pperiod when the period when the contract will be running. 
+-- Let the assets be sent to a aave strategy to earn yeilds for the pperiod when the period when the contract will be running.
+-- Implement oasis tech on this project to the users address private.  
 
 
 Build thought problem 
