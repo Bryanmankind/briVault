@@ -309,7 +309,7 @@ contract BriVault is ERC4626, Ownable {
         
         _burn(msg.sender, shares);
 
-        IERC20(asset()).transfer(msg.sender, assetToWithdraw);
+        IERC20(asset()).safeTransfer(msg.sender, assetToWithdraw);
 
         emit Withdraw(msg.sender, assetToWithdraw);
     }
