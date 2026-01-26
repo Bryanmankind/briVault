@@ -17,7 +17,7 @@ contract BriVault is ERC4626, Ownable {
     uint256 public participationFeeBsp;
 
     uint256 constant BASE = 10000;
-    uint256 constant PARTICIPATIONFEEBSPMAX = 300; 
+    uint256 constant PARTICIPATIONFEEBSPMAX = 300;
     /**
     @dev participationFee address
      */
@@ -66,20 +66,28 @@ contract BriVault is ERC4626, Ownable {
     error eventNotStarted();
     error WinnerAlreadySet();
     error limiteExceede();
+    error alreadyJoined();
+    error NoWinners();
+    error notJoinedYet();
+    error cantcelParticipation();
 
-    event deposited (address indexed _depositor, uint256 _value);
+    event deposited (address indexed _depositor, address indexed _receiver, uint256 _value, uint256 _participantShares);
     event CountriesSet(string[48] country);
     event WinnerSet (string winnerSet);
     event joinedEvent (address user, uint256 _countryId);
+    event updateJoinedEvent (address user, uint256 _countryId, uint256 addtionalShears);
     event Withdraw (address user, uint256 _amount);  
 
     mapping (address => uint256) public stakedAsset;
+    mapping (address => bool) public joined;
     mapping (address => string) public userToCountry;
+    mapping (address => uint256) public userToCountryId;
     mapping(address => mapping(uint256 => uint256)) public userSharesToCountry;
     
 
     constructor (IERC20 _asset, uint256 _participationFeeBsp, uint256 _eventStartDate, address _participationFeeAddress, uint256 _minimumAmount, uint256 _eventEndDate) ERC4626 (_asset) ERC20("BriTechLabs", "BTT") Ownable(msg.sender) {
-         if (_participationFeeBsp > PARTICIPATIONFEEBSPMAX){
+        
+        if (_participationFeeBsp > PARTICIPATIONFEEBSPMAX){
             revert limiteExceede();
          }
          
@@ -103,12 +111,13 @@ contract BriVault is ERC4626, Ownable {
     /**
         @notice sets the countries for the tournament
      */
- function setCountry(string[48] memory countries) public onlyOwner {
-    for (uint256 i = 0; i < countries.length; ++i) {
-        teams[i] = countries[i];
+    function setCountry(string[48] memory countries) public onlyOwner {
+        for (uint256 i = 0; i < 48; ) {
+            teams[i] = countries[i];
+            unchecked { ++i; }
+        }
     }
-    emit CountriesSet(countries);
-}
+
 
     /**
         @notice sets the winner at the end of the tournament 
@@ -151,28 +160,11 @@ contract BriVault is ERC4626, Ownable {
     }
 
     /**
-        @notice calculates the shares
-     */
-    function _convertToShares(uint256 assets) internal view returns (uint256 shares) {
-        uint256 balanceOfVault = IERC20(asset()).balanceOf(address(this));
-        uint256 totalShares = totalSupply(); // total minted BTT shares so far
-
-        if (totalShares == 0 || balanceOfVault == 0) {
-            // First depositor: 1:1 ratio
-            return assets;
-        }
-
-        shares = Math.mulDiv(assets, totalShares, balanceOfVault);
-    }
-
-
-    /**
     @notice get the winner
      */
     function getWinner () public view returns (string memory) {
         return winner;
     }
-
 
     /**
         @notice get country 
@@ -201,6 +193,7 @@ contract BriVault is ERC4626, Ownable {
         return (assets * participationFeeBsp) / BASE;
     }
 
+
     /** 
         @dev allows users to deposit for the event.
      */
@@ -212,26 +205,30 @@ contract BriVault is ERC4626, Ownable {
         }
 
         uint256 fee = _getParticipationFee(assets);
+
         // charge on a percentage basis points
         if (minimumAmount + fee > assets) {
             revert lowFeeAndAmount();
         }
 
-        uint256 stakeAsset = assets - fee;
-
-        stakedAsset[receiver] = stakeAsset;
-
-        uint256 participantShares = _convertToShares(stakeAsset);
-
-
         IERC20(asset()).safeTransferFrom(msg.sender, participationFeeAddress, fee);
 
-        IERC20(asset()).safeTransferFrom(msg.sender, address(this), stakeAsset);
+        uint256 stakeAsset = assets - fee;
 
-        _mint(msg.sender, participantShares);
+        uint256 balanceBefore = IERC20(asset()).balanceOf(address(this));
 
+        IERC20(asset()).safeTransferFrom(msg.sender, address(this), stakeAsset);    // we are using tokens with no fee on transfer
+        uint256 balanceAfter = IERC20(asset()).balanceOf(address(this));
 
-        emit deposited (receiver, stakeAsset);
+        uint256 actualStaked = balanceAfter - balanceBefore;
+
+        stakedAsset[receiver] += actualStaked;
+
+        uint256 participantShares = convertToShares(actualStaked);
+
+        _mint(receiver, participantShares);
+
+        emit deposited (msg.sender, receiver, actualStaked, participantShares);
 
         return participantShares;
     }
@@ -240,6 +237,9 @@ contract BriVault is ERC4626, Ownable {
         @dev allows users to join the event 
     */
     function joinEvent(uint256 countryId) public {
+
+        if (bytes(userToCountry[msg.sender]).length != 0) revert alreadyJoined();
+
         if (stakedAsset[msg.sender] == 0) {
             revert noDeposit();
         }
@@ -253,19 +253,43 @@ contract BriVault is ERC4626, Ownable {
             revert eventStarted();
         }
 
-        
         userToCountry[msg.sender] = teams[countryId];
+        userToCountryId[msg.sender] = countryId;    
 
-        
         uint256 participantShares = balanceOf(msg.sender);
         userSharesToCountry[msg.sender][countryId] = participantShares;
 
-        usersAddress.push(msg.sender);
+         usersAddress.push(msg.sender);
 
         numberOfParticipants++;
         totalParticipantShares += participantShares;
+        joined[msg.sender] = true;
 
         emit joinedEvent(msg.sender, countryId);
+    }
+
+    function updateJoinEvent () public {
+        if (block.timestamp > eventStartDate) {
+            revert eventStarted();
+        }
+
+        if (!joined[msg.sender]){
+            revert notJoinedYet();
+        }
+
+        uint256 countryId = userToCountryId[msg.sender];
+
+        uint256 participantShares = userSharesToCountry[msg.sender][countryId];
+
+        uint256 newShares = balanceOf(msg.sender);
+
+        uint256 additionalShares = newShares - participantShares;
+
+        userSharesToCountry[msg.sender][countryId] = additionalShares + participantShares;
+
+        totalParticipantShares += additionalShares;
+
+        emit updateJoinedEvent(msg.sender, countryId, additionalShares);
     }
 
 
@@ -275,6 +299,14 @@ contract BriVault is ERC4626, Ownable {
     function cancelParticipation () public  {
         if (block.timestamp >= eventStartDate){
            revert eventStarted();
+        }
+
+        if (stakedAsset[msg.sender] == 0){
+            revert noDeposit();
+        }
+
+        if (joined[msg.sender]){
+            revert cantcelParticipation();
         }
 
         uint256 refundAmount = stakedAsset[msg.sender];
@@ -291,7 +323,7 @@ contract BriVault is ERC4626, Ownable {
         /**
             @dev allows users to withdraw. 
         */
-    function withdraw() external winnerSet {
+    function getWinnerClaim() external winnerSet {
         if (block.timestamp < eventEndDate) {
             revert eventNotEnded();
         }
@@ -304,6 +336,10 @@ contract BriVault is ERC4626, Ownable {
         }
         uint256 shares = balanceOf(msg.sender);
 
+         if (totalWinnerShares == 0) {
+            revert NoWinners();
+        }
+
         uint256 vaultAsset = finalizedVaultAsset;
         uint256 assetToWithdraw = Math.mulDiv(shares, vaultAsset, totalWinnerShares);
         
@@ -314,5 +350,30 @@ contract BriVault is ERC4626, Ownable {
         emit Withdraw(msg.sender, assetToWithdraw);
     }
 
+    function withdraw(uint256 assets, address receiver, address owner) public override returns (uint256) {
+        revert ("BriVault: use getWinnerClaim()");
+    }
+
+    function redeem(uint256 shares, address receiver, address owner) public override returns (uint256) {
+        revert ("BriVault: use getWinnerClaim()");
+    }
+
+     /**
+  * @notice Allows the owner to recover all funds if no winner was found.
+  * @dev This function is a critical failsafe to prevent funds from being locked.
+  * It should only be callable after a winner has been set and totalWinnerShares is confirmed to be 0.
+   */
+  function recoverFundsIfNoWinner() external onlyOwner {
+      if (_setWinner != true) {
+          revert winnerNotSet();
+     }
+
+     if (totalWinnerShares != 0) {
+          revert("Cannot recover funds, there are winners");
+      }
+
+      uint256 totalBalance = IERC20(asset()).balanceOf(address(this));
+      IERC20(asset()).safeTransfer(owner(), totalBalance);
+  }
 
 }

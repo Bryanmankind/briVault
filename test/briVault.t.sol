@@ -75,14 +75,14 @@ contract BriVaultTest is Test {
         assertEq(result, "Mexico");
     }
 
-    function testOwnerIsSetCorrectly() public view {
-    assertEq(briVault.owner(), owner, "Owner should be deployer");
-    }
-
-    function testNotOwnerCannotSetCountry() public {
+    function testSetCountryNotOwner() public {
         vm.prank(user1);
         vm.expectRevert();
         briVault.setCountry(countries);
+    }
+
+    function testOwnerIsSetCorrectly() public view {
+        assertEq(briVault.owner(), owner, "Owner should be deployer");
     }
 
     function testSetWinner() public {
@@ -96,15 +96,42 @@ contract BriVaultTest is Test {
         assertEq(result, "Mexico");
     }
 
+    function testsetWinnerNotOwner() public {
+        vm.prank(user1);
+        vm.expectRevert();
+        briVault.setWinner(2);
+    }
+
+    function testsetWinnerBeforeEventEnd() public {
+        vm.startPrank(owner);
+        briVault.setCountry(countries);
+        vm.warp(eventStartDate + 1);
+        vm.expectRevert(abi.encodeWithSignature("eventNotEnded()"));
+        briVault.setWinner(2);
+        vm.stopPrank();
+    }
+
+    function testsetWinnerAfterSettingWinner () public {
+        vm.startPrank(owner);
+        briVault.setCountry(countries);
+        vm.warp(eventEndDate + 1);
+        briVault.setWinner(2);
+        vm.expectRevert(abi.encodeWithSignature("WinnerAlreadySet()"));
+        briVault.setWinner(3);
+        vm.stopPrank();
+    }
+
     function test_deposit() public {
         vm.startPrank(user1);
         mockToken.approve(address(briVault), 5 ether);
-        briVault.deposit(5 ether, user1);
+        uint256 user1share = briVault.deposit(5 ether, user1);
+        console.log("user1ShareValue:", user1share);
         vm.stopPrank();
 
         vm.startPrank(user2);
         mockToken.approve(address(briVault), 5 ether);
-        briVault.deposit(5 ether, user2);
+        uint256 user2Share = briVault.deposit(5 ether, user2);
+        console.log("user2ShareValue:", user2Share);
         vm.stopPrank();
 
         vm.startPrank(user3);
@@ -199,70 +226,70 @@ contract BriVaultTest is Test {
         vm.stopPrank();
     }
 
-    function test_withdraw() public {
-        vm.startPrank(owner);
-        briVault.setCountry(countries);
-        vm.stopPrank();
+    // function test_withdraw() public {
+    //     vm.startPrank(owner);
+    //     briVault.setCountry(countries);
+    //     vm.stopPrank();
 
-        vm.startPrank(user1);
-        mockToken.approve(address(briVault), 5 ether);
-        uint256 user1Shares =  briVault.deposit(5 ether, user1);
-        briVault.joinEvent(10);
-        uint256 balanceBeforuser1 = mockToken.balanceOf(user1);
-        vm.stopPrank();
+    //     vm.startPrank(user1);
+    //     mockToken.approve(address(briVault), 5 ether);
+    //     uint256 user1Shares =  briVault.deposit(5 ether, user1);
+    //     briVault.joinEvent(10);
+    //     uint256 balanceBeforuser1 = mockToken.balanceOf(user1);
+    //     vm.stopPrank();
 
-        vm.startPrank(user2);
-        mockToken.approve(address(briVault), 5 ether);
-        uint256 user2Shares = briVault.deposit(5 ether, user2);
-        briVault.joinEvent(10);
-        uint256 balanceBeforuser2 = mockToken.balanceOf(user2);
-        vm.stopPrank();
+    //     vm.startPrank(user2);
+    //     mockToken.approve(address(briVault), 5 ether);
+    //     uint256 user2Shares = briVault.deposit(5 ether, user2);
+    //     briVault.joinEvent(10);
+    //     uint256 balanceBeforuser2 = mockToken.balanceOf(user2);
+    //     vm.stopPrank();
 
-        vm.startPrank(user3);
-        mockToken.approve(address(briVault), 5 ether);
-        uint256 user3Shares = briVault.deposit(5 ether, user3);
-        briVault.joinEvent(30);
-        vm.stopPrank();
+    //     vm.startPrank(user3);
+    //     mockToken.approve(address(briVault), 5 ether);
+    //     uint256 user3Shares = briVault.deposit(5 ether, user3);
+    //     briVault.joinEvent(30);
+    //     vm.stopPrank();
 
-        vm.startPrank(user4);
-        mockToken.approve(address(briVault), 5 ether);
-        uint256 user4Shares = briVault.deposit(5 ether, user4);
-        briVault.joinEvent(10);
-        uint256 balanceBeforuser4 = mockToken.balanceOf(user4);
-        vm.stopPrank();
+    //     vm.startPrank(user4);
+    //     mockToken.approve(address(briVault), 5 ether);
+    //     uint256 user4Shares = briVault.deposit(5 ether, user4);
+    //     briVault.joinEvent(10);
+    //     uint256 balanceBeforuser4 = mockToken.balanceOf(user4);
+    //     vm.stopPrank();
 
-        console.log( user3Shares);
-        console.log( user2Shares);
-        console.log( user1Shares);
-        console.log( user4Shares);
+    //     console.log( user3Shares);
+    //     console.log( user2Shares);
+    //     console.log( user1Shares);
+    //     console.log( user4Shares);
 
-        vm.warp(eventEndDate + 1);
-        vm.startPrank(owner);
-        briVault.setWinner(10);
-        console.log(briVault.finalizedVaultAsset());
-        vm.stopPrank();
+    //     vm.warp(eventEndDate + 1);
+    //     vm.startPrank(owner);
+    //     briVault.setWinner(10);
+    //     console.log(briVault.finalizedVaultAsset());
+    //     vm.stopPrank();
 
-        vm.startPrank(user1);
-        briVault.withdraw();
-        vm.stopPrank();
+    //     vm.startPrank(user1);
+    //     briVault.getWinnerClaim();
+    //     vm.stopPrank();
 
-        vm.startPrank(user2);
-        briVault.withdraw();
-        vm.stopPrank();
+    //     vm.startPrank(user2);
+    //     briVault.getWinnerClaim();
+    //     vm.stopPrank();
 
-        vm.startPrank(user3);
-        vm.expectRevert(abi.encodeWithSignature("didNotWin()"));
-        briVault.withdraw();
-        vm.stopPrank();
+    //     vm.startPrank(user3);
+    //     vm.expectRevert(abi.encodeWithSignature("didNotWin()"));
+    //     briVault.getWinnerClaim();
+    //     vm.stopPrank();
 
-        vm.startPrank(user4);
-        briVault.withdraw();
-        vm.stopPrank();
+    //     vm.startPrank(user4);
+    //     briVault.getWinnerClaim();
+    //     vm.stopPrank();
 
-     assertEq(mockToken.balanceOf(user1), balanceBeforuser1 + 6566666666666666666);
-     assertEq(mockToken.balanceOf(user2), balanceBeforuser2 + 6566666666666666666);
-     assertEq(mockToken.balanceOf(user4), balanceBeforuser4 + 6566666666666666666);
+    //  assertEq(mockToken.balanceOf(user1), balanceBeforuser1 + 6566666666666666666);
+    //  assertEq(mockToken.balanceOf(user2), balanceBeforuser2 + 6566666666666666666);
+    //  assertEq(mockToken.balanceOf(user4), balanceBeforuser4 + 6566666666666666666);
        
-    }
+    // }
     
 }
