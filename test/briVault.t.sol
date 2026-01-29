@@ -123,28 +123,44 @@ contract BriVaultTest is Test {
 
     function test_deposit() public {
         vm.startPrank(user1);
-        mockToken.approve(address(briVault), 5 ether);
-        uint256 user1share = briVault.deposit(5 ether, user1);
+        mockToken.approve(address(briVault), 10 ether);
+        uint256 user1share = briVault.deposit(10 ether, user1);
         console.log("user1ShareValue:", user1share);
         vm.stopPrank();
 
         vm.startPrank(user2);
-        mockToken.approve(address(briVault), 5 ether);
-        uint256 user2Share = briVault.deposit(5 ether, user2);
-        console.log("user2ShareValue:", user2Share);
+        mockToken.approve(address(briVault), 10 ether);
+        uint256 user2share = briVault.deposit(10 ether, user2);
+        console.log("user2ShareValue:", user2share);
         vm.stopPrank();
 
         vm.startPrank(user3);
-        mockToken.approve(address(briVault), 5 ether);
-        briVault.deposit(5 ether, user3);
+        mockToken.approve(address(briVault), 10 ether);
+        uint256 user3share = briVault.deposit(10 ether, user3);
+        console.log("user3ShareValue:", user3share);
         vm.stopPrank();
 
-        vm.startPrank(user4);
+        console.log("participationFeeAddress Balance:", mockToken.balanceOf(address(participationFeeAddress))); 
+        assertEq(mockToken.balanceOf(address(participationFeeAddress)), 450000000000000000);
+        assertEq(mockToken.balanceOf(address(briVault)), 30 ether - 450000000000000000);
+        assertEq(briVault.balanceOf(user1), user1share);
+        assertEq(briVault.balanceOf(user2), user2share);
+        assertEq(briVault.balanceOf(user3), user3share);
+    }
+
+    function test_ActualStakedAsset () public {
+        vm.startPrank(user1);
         mockToken.approve(address(briVault), 5 ether);
-        briVault.deposit(5 ether, user4);
+        briVault.deposit(5 ether, user1);
         vm.stopPrank();
 
-        assertEq(mockToken.balanceOf(address(briVault)), 19700000000000000000);
+        vm.startPrank(user1);
+        mockToken.approve(address(briVault), 5 ether);
+        briVault.deposit(5 ether, user1);
+        vm.stopPrank();
+
+        console.log("Actual Staked Asset:", briVault.stakedAsset(user1));
+        assertEq(briVault.stakedAsset(user1), 10 ether - 150000000000000000);
     }
 
     function test_deposit_after_event_start() public {
@@ -154,6 +170,21 @@ contract BriVaultTest is Test {
         vm.expectRevert(abi.encodeWithSignature("eventStarted()"));
         briVault.deposit(5 ether, user1);
         vm.stopPrank();
+    }
+
+    function test_participationFeeTransfer () public {
+        vm.startPrank(user1);
+        mockToken.approve(address(briVault), 5 ether);
+        uint256 user1share = briVault.deposit(5 ether, user1);
+        console.log("user1ShareValue:", user1share);
+        vm.stopPrank();
+
+        vm.startPrank(user2);
+        mockToken.approve(address(briVault), 5 ether);
+        uint256 user2Share = briVault.deposit(5 ether, user2);
+        vm.stopPrank();
+        console.log("Participation Fee Address Balance:", mockToken.balanceOf(address(participationFeeAddress)));
+        assertEq(mockToken.balanceOf(address(participationFeeAddress)), 150000000000000000);
     }
 
     function test_joinEvent_noDeposit() public {

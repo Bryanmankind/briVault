@@ -6,9 +6,8 @@ import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.so
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {Ownable} from "../lib/openzeppelin-contracts/contracts/access/Ownable.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-
 
 contract BriVault is ERC4626, Ownable {
 
@@ -71,7 +70,6 @@ contract BriVault is ERC4626, Ownable {
     error notJoinedYet();
     error cantcelParticipation();
 
-    event deposited (address indexed _depositor, address indexed _receiver, uint256 _value, uint256 _participantShares);
     event CountriesSet(string[48] country);
     event WinnerSet (string winnerSet);
     event joinedEvent (address user, uint256 _countryId);
@@ -159,6 +157,10 @@ contract BriVault is ERC4626, Ownable {
         return finalizedVaultAsset = IERC20(asset()).balanceOf(address(this));
     }
 
+    function totalAssets() public view override returns (uint256) {
+        return IERC20(asset()).balanceOf(address(this));
+    }
+
     /**
     @notice get the winner
      */
@@ -193,6 +195,17 @@ contract BriVault is ERC4626, Ownable {
         return (assets * participationFeeBsp) / BASE;
     }
 
+    function updateParticipationFeeBsp(uint256 newFeeBsp) external onlyOwner {
+        if (newFeeBsp > PARTICIPATIONFEEBSPMAX){
+            revert limiteExceede();
+         }
+        participationFeeBsp = newFeeBsp;
+    }
+
+    function updateParticipationFeeAddress(address newAddress) external onlyOwner {
+        participationFeeAddress = newAddress;
+    }
+
 
     /** 
         @dev allows users to deposit for the event.
@@ -213,24 +226,20 @@ contract BriVault is ERC4626, Ownable {
 
         IERC20(asset()).safeTransferFrom(msg.sender, participationFeeAddress, fee);
 
-        uint256 stakeAsset = assets - fee;
+        uint256 actualStaked = assets - fee;
 
-        uint256 balanceBefore = IERC20(asset()).balanceOf(address(this));
+        uint256 shares = previewDeposit(actualStaked);
 
-        IERC20(asset()).safeTransferFrom(msg.sender, address(this), stakeAsset);    // we are using tokens with no fee on transfer
-        uint256 balanceAfter = IERC20(asset()).balanceOf(address(this));
+        if (shares == 0) {
+            revert notRegistered();
+        }
 
-        uint256 actualStaked = balanceAfter - balanceBefore;
+        // we are using tokens with no fee on transfer
+        _deposit(msg.sender, receiver, actualStaked, shares);
 
         stakedAsset[receiver] += actualStaked;
 
-        uint256 participantShares = convertToShares(actualStaked);
-
-        _mint(receiver, participantShares);
-
-        emit deposited (msg.sender, receiver, actualStaked, participantShares);
-
-        return participantShares;
+        return shares;
     }
 
     /**
