@@ -247,7 +247,7 @@ contract BriVault is ERC4626, Ownable {
     */
     function joinEvent(uint256 countryId) public {
 
-        if (bytes(userToCountry[msg.sender]).length != 0) revert alreadyJoined();
+        if (joined[msg.sender]) revert alreadyJoined();
 
         if (stakedAsset[msg.sender] == 0) {
             revert noDeposit();
@@ -332,7 +332,7 @@ contract BriVault is ERC4626, Ownable {
         /**
             @dev allows users to withdraw. 
         */
-    function getWinnerClaim() external winnerSet {
+    function getWinnerClaim() external winnerSet returns (uint256) {
         if (block.timestamp < eventEndDate) {
             revert eventNotEnded();
         }
@@ -357,6 +357,8 @@ contract BriVault is ERC4626, Ownable {
         IERC20(asset()).safeTransfer(msg.sender, assetToWithdraw);
 
         emit Withdraw(msg.sender, assetToWithdraw);
+
+        return assetToWithdraw;
     }
 
     function withdraw(uint256 assets, address receiver, address owner) public override returns (uint256) {
@@ -373,16 +375,31 @@ contract BriVault is ERC4626, Ownable {
   * It should only be callable after a winner has been set and totalWinnerShares is confirmed to be 0.
    */
   function recoverFundsIfNoWinner() external onlyOwner {
-      if (_setWinner != true) {
-          revert winnerNotSet();
-     }
+        if (block.timestamp < eventEndDate) {
+            revert eventNotEnded();
+        }
 
-     if (totalWinnerShares != 0) {
+        if (_setWinner != true) {
+          revert winnerNotSet();
+        }
+
+        if (totalWinnerShares != 0) {
           revert("Cannot recover funds, there are winners");
-      }
+        }
+
+        _burn(address(this), totalSupply());
 
       uint256 totalBalance = IERC20(asset()).balanceOf(address(this));
       IERC20(asset()).safeTransfer(owner(), totalBalance);
   }
+
+  function withdrawDust(address to) external onlyOwner {
+    if (block.timestamp < eventEndDate) {
+            revert eventNotEnded();
+        }
+        
+        uint256 vaultBalance = IERC20(asset()).balanceOf(address(this));
+        IERC20(asset()).safeTransfer(to, vaultBalance);
+    }
 
 }
