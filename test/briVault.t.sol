@@ -449,8 +449,12 @@ contract BriVaultTest is Test {
         briVault.getWinnerClaim();
         vm.stopPrank();
 
-        console.log("Finalized Vault Asset:", briVault.finalizedVaultAsset());
-        assertEq(briVault.finalizedVaultAsset(), 0);
+        vm.startPrank(owner);
+        briVault.withdrawDust();
+        vm.stopPrank();
+
+        console.log("Finalized Vault Asset:", briVault.totalAssets());
+        assertEq(briVault.totalAssets(), 0);
     }
     
 }

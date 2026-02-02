@@ -42,7 +42,6 @@ contract BriVault is ERC4626, Ownable {
 
     uint256 public winnerCountryId;
 
-
     // minimum amount to join in.
     uint256 public  minimumAmount; 
 
@@ -69,6 +68,7 @@ contract BriVault is ERC4626, Ownable {
     error NoWinners();
     error notJoinedYet();
     error cantcelParticipation();
+    error stillWinners();
 
     event CountriesSet(string[48] country);
     event WinnerSet (string winnerSet);
@@ -349,6 +349,7 @@ contract BriVault is ERC4626, Ownable {
             revert NoWinners();
         }
 
+        burntUsersShears = totalWinnerShares;
         uint256 vaultAsset = finalizedVaultAsset;
         uint256 assetToWithdraw = Math.mulDiv(shares, vaultAsset, totalWinnerShares);
         
@@ -390,16 +391,20 @@ contract BriVault is ERC4626, Ownable {
         _burn(address(this), totalSupply());
 
       uint256 totalBalance = IERC20(asset()).balanceOf(address(this));
-      IERC20(asset()).safeTransfer(owner(), totalBalance);
+      IERC20(asset()).safeTransfer(participationFeeAddress, totalBalance);
   }
 
-  function withdrawDust(address to) external onlyOwner {
+  function withdrawDust() external onlyOwner {
     if (block.timestamp < eventEndDate) {
             revert eventNotEnded();
         }
+
+        if (_setWinner != true) {
+          revert winnerNotSet();
+        }
         
         uint256 vaultBalance = IERC20(asset()).balanceOf(address(this));
-        IERC20(asset()).safeTransfer(to, vaultBalance);
+        IERC20(asset()).safeTransfer(participationFeeAddress, vaultBalance);
     }
 
 }
