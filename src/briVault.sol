@@ -17,6 +17,7 @@ contract BriVault is ERC4626, Ownable {
 
     uint256 constant BASE = 10000;
     uint256 constant PARTICIPATIONFEEBSPMAX = 300;
+    uint256 public constant DUST_LIMIT = 1e6;
     /**
     @dev participationFee address
      */
@@ -349,7 +350,6 @@ contract BriVault is ERC4626, Ownable {
             revert NoWinners();
         }
 
-        burntUsersShears = totalWinnerShares;
         uint256 vaultAsset = finalizedVaultAsset;
         uint256 assetToWithdraw = Math.mulDiv(shares, vaultAsset, totalWinnerShares);
         
@@ -393,7 +393,10 @@ contract BriVault is ERC4626, Ownable {
       uint256 totalBalance = IERC20(asset()).balanceOf(address(this));
       IERC20(asset()).safeTransfer(participationFeeAddress, totalBalance);
   }
+/**
+    @dev I'm still trying to handel the dust function here correctly
 
+ */
   function withdrawDust() external onlyOwner {
     if (block.timestamp < eventEndDate) {
             revert eventNotEnded();
@@ -402,8 +405,11 @@ contract BriVault is ERC4626, Ownable {
         if (_setWinner != true) {
           revert winnerNotSet();
         }
-        
+
         uint256 vaultBalance = IERC20(asset()).balanceOf(address(this));
+        if (vaultBalance > DUST_LIMIT) {
+            revert("Vault balance is above dust limit");
+        }
         IERC20(asset()).safeTransfer(participationFeeAddress, vaultBalance);
     }
 
